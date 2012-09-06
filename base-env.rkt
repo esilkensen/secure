@@ -18,5 +18,7 @@
 (define/secure + zs (apply + (map @-value zs)))
 (define/secure * zs (apply * (map @-value zs)))
 
+(define/secure printf (fmt . args)
+  (apply printf (map @-value (cons fmt args))))
+
 (define/secure exit ([v (@⊥ #t)]) (exit v))
-  

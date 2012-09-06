@@ -13,6 +13,9 @@
 (define-values (⊥ low high ⊤)
   (values (@ '⊥ '⊥) (@ 'low '⊥) (@ 'high '⊥) (@ '⊤ '⊥)))
 
+(define (label? x)
+  (or (eq? x '⊥) (eq? x 'low) (eq? x 'high) (eq? x '⊤)))
+
 (define-syntax-rule (@⊥ x) (@ x (@-value ⊥)))
 
 (define (∨ L1 L2 . rest)

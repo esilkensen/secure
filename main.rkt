@@ -2,7 +2,7 @@
 
 #lang racket
 
-(require "label.rkt" "base-env.rkt")
+(require "label.rkt" "nav.rkt" "base-env.rkt")
 
 (provide
  require
@@ -49,6 +49,41 @@
 
 (provide (rename-out [secure-app #%app]))
 (define-syntax-rule (secure-app proc-expr . args)
-  (let ([proc proc-expr])
+  (let ([proc (values proc-expr)])
     (raise-pc! (@-label proc))
-    (#%app (@-value proc) . args)))
+    (if (eq? 'TFun (@-value (#%app (@-value tag-of) proc)))
+        (#%app (@-value proc) . args)
+        (@⊥ (prEx (@-value proc))))))
+
+(provide tag-of)
+(secure-define (tag-of x)
+  (let ([b (@-value x)])
+    (cond [(label? b) (@⊥ 'TLab)]
+          [(procedure? b) (@⊥ 'TFun)]
+          [(number? b) (@⊥ 'TNum)]
+          [(string? b) (@⊥ 'TStr)]
+          [(tag? b) (@⊥ 'TTag)]
+          [(δ? b) x])))
+
+(define (tag? x)
+  (member x '(TLab TFun TNum TStr TTag TUnknown)))
+        
+(provide bracket)
+(define-syntax-rule (bracket label-expr expr)
+  (let* ([pc0 pc]
+         [x label-expr])
+    (raise-pc! (@-label x))
+    (if (eq? 'TLab (@-value (secure-app tag-of x)))
+        (let ([t (values expr)])
+          (cond
+           [(⊑ (∨ (@-label t) pc)
+               (∨ (@-value x) pc0 (@-label x)))
+            (set-pc! (∨ pc0 (@-label x)))
+            (@ (@-value t) (@-value x))]
+           [else
+            (set-pc! (∨ pc0 (@-label x)))
+            (@ (δ 'EBracket) (@-value x))]))
+        (@⊥ (prEx (@-value x))))))
+
+(define (prEx b)
+  (if (δ? b) b (δ 'EType)))

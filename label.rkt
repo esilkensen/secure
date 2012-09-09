@@ -18,7 +18,7 @@
 
 (define-syntax-rule (@⊥ x) (@ x (@-value ⊥)))
 
-(define (∨ L1 L2 . rest)
+(define (∨ . ls)
   (define (join L1 L2)
     (match (list L1 L2)
       [`(,L ,L) L]
@@ -28,7 +28,7 @@
       [`(,L ⊤) '⊤]
       [`(low high) 'high]
       [`(high low) 'high]))
-  (foldl join L1 (cons L2 rest)))
+  (foldl join '⊥ ls))
 
 (define (⊑ L1 L2 . rest)
   (define (leq L1 L2)

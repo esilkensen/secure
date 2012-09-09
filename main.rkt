@@ -9,6 +9,16 @@
  #%module-begin
  #%top-interaction
  #%top
+ let
+ (rename-out
+  [secure-datum #%datum]
+  [secure-define define]
+  [secure-lambda lambda]
+  [secure-lambda λ]
+  [secure-app #%app])
+ label-of
+ get-pc
+ bracket
  (all-from-out "base-env.rkt")
  ⊥ low high ⊤)
 
@@ -19,11 +29,9 @@
 
 (define (set-pc! L) (set! pc L))
 
-(provide (rename-out [secure-datum #%datum]))
 (define-syntax-rule (secure-datum . datum)
   (@⊥ (#%datum . datum)))
 
-(provide (rename-out [secure-define define]))
 (define-syntax secure-define
   (syntax-rules ()
     [(_ (id . args) body . rest)
@@ -31,7 +39,6 @@
     [(_ id expr)
      (define id expr)]))
 
-(provide (rename-out [secure-lambda lambda] [secure-lambda λ]))
 (define-syntax (secure-lambda stx)
   (syntax-case stx ()
     [(_ kw-formals body . rest)
@@ -41,13 +48,10 @@
                             'inferred-name (syntax-local-name))])
          #'(@⊥ proc)))]))
 
-(provide label-of)
 (secure-define (label-of x) (@⊥ (@-label x)))
 
-(provide get-pc)
 (secure-define (get-pc) (@⊥ pc))
 
-(provide (rename-out [secure-app #%app]))
 (define-syntax-rule (secure-app proc-expr . args)
   (let ([proc (values proc-expr)])
     (raise-pc! (@-label proc))
@@ -55,7 +59,6 @@
         (#%app (@-value proc) . args)
         (@⊥ (prEx (@-value proc))))))
 
-(provide tag-of)
 (secure-define (tag-of x)
   (let ([b (@-value x)])
     (cond [(label? b) (@⊥ 'TLab)]
@@ -68,7 +71,6 @@
 (define (tag? x)
   (member x '(TLab TFun TNum TStr TTag TUnknown)))
         
-(provide bracket)
 (define-syntax-rule (bracket label-expr expr)
   (let* ([pc0 pc]
          [x label-expr])
@@ -87,3 +89,35 @@
 
 (define (prEx b)
   (if (δ? b) b (δ 'EType)))
+
+(define-syntax (define/secure stx)
+  (syntax-case stx ()
+    [(_ id kw-formals body . rest)
+     (let ([proc-datum
+            `(,#'λ ,#'kw-formals
+               (@ (begin ,#'body . ,#'rest)
+                  (apply ∨ (map @-label ,#'kw-formals))))])
+       (with-syntax ([proc (syntax-property
+                            (datum->syntax stx proc-datum stx stx)
+                            'inferred-name (syntax-e #'id))])
+         #`(begin
+             (provide (rename-out [secure-id id]))
+             (define secure-id (@⊥ proc)))))]))
+
+(define/secure + zs
+  (let loop ([as zs])
+    (if (null? as)
+        (apply + (map @-value zs))
+        (if (number? (@-value (car as)))
+            (loop (cdr as))
+            (prEx (car as))))))
+
+(define/secure * zs
+  (let loop ([as zs])
+    (if (null? as)
+        (apply * (map @-value zs))
+        (if (number? (@-value (car as)))
+            (loop (cdr as))
+            (prEx (car as))))))
+
+(define/secure exit ([v (@⊥ #t)]) (exit v))

@@ -19,6 +19,8 @@
  bracket
  ⊥ low high ⊤)
 
+;; ----------------------------------------------------------------------------
+
 (struct @ (value label)
   #:property prop:custom-write
   (λ (a port write?)
@@ -29,6 +31,8 @@
   #:property prop:custom-write
   (λ (b port write?)
     (fprintf port (if write? "δ ~s" "δ ~a") (δ-excp b))))
+
+;; ----------------------------------------------------------------------------
 
 (define-values (⊥ low high ⊤)
   (values (@ '⊥ '⊥) (@ 'low '⊥) (@ 'high '⊥) (@ '⊤ '⊥)))
@@ -72,6 +76,8 @@
 
 (define (set-pc! L) (set! pc L))
 
+;; ----------------------------------------------------------------------------
+
 (define-syntax-rule (secure-datum . datum)
   (@⊥ (#%datum . datum)))
 
@@ -111,9 +117,6 @@
           [(tag? b) (@⊥ 'TTag)]
           [(δ? b) x])))
 
-(define (tag? x)
-  (member x '(TLab TFun TNum TStr TTag TUnknown)))
-        
 (define-syntax-rule (bracket label-expr expr)
   (let* ([pc0 pc]
          [x label-expr])
@@ -129,9 +132,6 @@
             (set-pc! (∨ pc0 (@-label x)))
             (@ (δ 'EBracket) (@-value x))]))
         (@⊥ (prEx (@-value x))))))
-
-(define (prEx b)
-  (if (δ? b) b (δ 'EType)))
 
 ;; ----------------------------------------------------------------------------
 
@@ -169,3 +169,11 @@
 
 (define/secure exit ([v (@⊥ #t)]) (list v)
   (list (λ (x) #t)))
+
+;; ----------------------------------------------------------------------------
+
+(define (tag? x)
+  (member x '(TLab TFun TNum TStr TTag TUnknown)))
+        
+(define (prEx b)
+  (if (δ? b) b (δ 'EType)))

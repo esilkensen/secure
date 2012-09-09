@@ -2,7 +2,7 @@
 
 #lang racket
 
-(require "label.rkt" "nav.rkt" "base-env.rkt")
+(require "label.rkt" "nav.rkt")
 
 (provide
  require
@@ -19,7 +19,6 @@
  label-of
  get-pc
  bracket
- (all-from-out "base-env.rkt")
  ⊥ low high ⊤)
 
 (define pc (@-value ⊥))

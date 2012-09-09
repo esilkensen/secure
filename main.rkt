@@ -91,16 +91,16 @@
 
 (define-syntax (define/secure stx)
   (syntax-case stx ()
-    [(_ id kw-formals formals-list type?)
+    [(_ id kw-formals formals-list formals-types)
      (let ([proc-datum
             `(,#'λ ,#'kw-formals
                (define formals ,#'formals-list)
                (define L (apply ∨ (map @-label formals)))
-               (let loop ([as formals])
+               (let loop ([as formals] [ts ,#'formals-types])
                  (if (null? as)
                      (@ (apply ,#'id (map @-value formals)) L)
-                     (if (,#'type? (@-value (car as)))
-                         (loop (cdr as))
+                     (if ((car ts) (@-value (car as)))
+                         (loop (cdr as) (cdr ts))
                          (@ (prEx (car as)) L)))))])
        (with-syntax ([proc (syntax-property
                             (datum->syntax stx proc-datum stx stx)
@@ -109,8 +109,17 @@
              (provide (rename-out [secure-id id]))
              (define secure-id (@⊥ proc)))))]))
 
-(define/secure ∨ ls ls label?)
-(define/secure ⊑ (L1 L2 . rest) (cons L1 (cons L2 rest)) label?)
-(define/secure + zs zs number?)
-(define/secure * zs zs number?)
-(define/secure exit ([v (@⊥ #t)]) (list v) (λ (x) #t))
+(define/secure ∨ ls ls
+  (map (λ (l) label?) ls))
+
+(define/secure ⊑ (L1 L2 . rest) (cons L1 (cons L2 rest))
+  (map (λ (l) label?) (cons L1 (cons L2 rest))))
+
+(define/secure + zs zs
+  (map (λ (z) number?) zs))
+
+(define/secure * zs zs
+  (map (λ (z) number?) zs))
+
+(define/secure exit ([v (@⊥ #t)]) (list v)
+  (list (λ (x) #t)))

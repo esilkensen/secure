@@ -2,8 +2,6 @@
 
 #lang racket
 
-(require "label.rkt" "nav.rkt")
-
 (provide
  require
  #%module-begin
@@ -20,6 +18,52 @@
  get-pc
  bracket
  ⊥ low high ⊤)
+
+(struct @ (value label)
+  #:property prop:custom-write
+  (λ (a port write?)
+    (fprintf port (if write? "~s @ ~s" "~a @ ~a")
+             (@-value a) (@-label a))))
+
+(struct δ (excp)
+  #:property prop:custom-write
+  (λ (b port write?)
+    (fprintf port (if write? "δ ~s" "δ ~a") (δ-excp b))))
+
+(define-values (⊥ low high ⊤)
+  (values (@ '⊥ '⊥) (@ 'low '⊥) (@ 'high '⊥) (@ '⊤ '⊥)))
+
+(define (label? x)
+  (or (eq? x '⊥) (eq? x 'low) (eq? x 'high) (eq? x '⊤)))
+
+(define-syntax-rule (@⊥ x) (@ x (@-value ⊥)))
+
+(define (∨ . ls)
+  (define (join L1 L2)
+    (match (list L1 L2)
+      [`(,L ,L) L]
+      [`(⊥ ,L) L]
+      [`(,L ⊥) L]
+      [`(⊤ ,L) '⊤]
+      [`(,L ⊤) '⊤]
+      [`(low high) 'high]
+      [`(high low) 'high]))
+  (foldl join '⊥ ls))
+
+(define (⊑ L1 L2 . rest)
+  (define (leq L1 L2)
+    (match (list L1 L2)
+      [`(,L ,L) #t]
+      [`(⊥ ,L) #t]
+      [`(,L ⊥) #f]
+      [`(⊤ ,L) #f]
+      [`(,L ⊤) #t]
+      [`(low high) #t]
+      [`(high low) #f]))
+  (let loop ([L L1] [ls (cons L2 rest)])
+    (or (null? ls)
+        (and (leq L (car ls))
+             (loop (car ls) (cdr ls))))))
 
 (define pc (@-value ⊥))
 
@@ -88,6 +132,8 @@
 
 (define (prEx b)
   (if (δ? b) b (δ 'EType)))
+
+;; ----------------------------------------------------------------------------
 
 (define-syntax (define/secure stx)
   (syntax-case stx ()

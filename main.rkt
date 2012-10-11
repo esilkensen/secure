@@ -13,10 +13,12 @@
   [secure-define define]
   [secure-lambda lambda]
   [secure-lambda λ]
-  [secure-app #%app])
+  [secure-app #%app]
+  [make-excp ε])
  label-of
  get-pc
  bracket
+ throw try
  ⊥ low high ⊤)
 
 ;; ----------------------------------------------------------------------------
@@ -32,6 +34,30 @@
   (λ (b port write?)
     (fprintf port (if write? "δ ~s" "δ ~a") (δ-excp b))))
 
+(struct τ (excp)
+  #:property prop:custom-write
+  (λ (b port write?)
+    (fprintf port (if write? "τ ~s" "τ ~a") (τ-excp b))))
+
+(struct ε (excp)
+  #:property prop:custom-write
+  (λ (b port write?)
+    (fprintf port (if write? "(ε ~s)" "(ε ~a)") (ε-excp b))))
+
+(define-syntax-rule (make-excp excp) (@⊥ (ε 'excp)))
+
+(struct Left (value)
+  #:property prop:custom-write
+  (λ (t port write?)
+    (fprintf port (if write? "(Left ~s)" "(Left ~a)")
+             (Left-value t))))
+
+(struct Right (value)
+  #:property prop:custom-write
+  (λ (t port write?)
+    (fprintf port (if write? "(Right ~s)" "(Right ~a)")
+             (Right-value t))))
+
 ;; ----------------------------------------------------------------------------
 
 (define-values (⊥ low high ⊤)
@@ -40,7 +66,7 @@
 (define (label? x)
   (or (eq? x '⊥) (eq? x 'low) (eq? x 'high) (eq? x '⊤)))
 
-(define-syntax-rule (@⊥ x) (@ x (@-value ⊥)))
+(define (@⊥ x) (@ x (@-value ⊥)))
 
 (define (∨ . ls)
   (define (join L1 L2)
@@ -102,11 +128,11 @@
 (secure-define (get-pc) (@⊥ pc))
 
 (define-syntax-rule (secure-app proc-expr . args)
-  (let ([proc (values proc-expr)])
+  (let ([proc proc-expr])
     (raise-pc! (@-label proc))
-    (if (eq? 'TFun (@-value (#%app (@-value tag-of) proc)))
-        (#%app (@-value proc) . args)
-        (@⊥ (prEx (@-value proc))))))
+    (if (eq? 'TFun (@-value ((@-value tag-of) proc)))
+        ((@-value proc) . args)
+        (τ 'EType))))
 
 (secure-define (tag-of x)
   (let ([b (@-value x)])
@@ -115,7 +141,7 @@
           [(number? b) (@⊥ 'TNum)]
           [(string? b) (@⊥ 'TStr)]
           [(tag? b) (@⊥ 'TTag)]
-          [(δ? b) x])))
+          [else x])))
 
 (define-syntax-rule (bracket label-expr expr)
   (let* ([pc0 pc]
@@ -124,14 +150,41 @@
     (if (eq? 'TLab (@-value (secure-app tag-of x)))
         (let ([t (values expr)])
           (cond
+           [(and (τ? t)
+                 (⊑ pc (∨ (@-value x) pc0 (@-label x))))
+            (set-pc! (∨ pc0 (@-label x)))
+            (@ (Right (@⊥ (ε (τ-excp t)))) (@-value x))]
+           [(τ? t)
+            (set-pc! (∨ pc0 (@-label x)))
+            (@ (Right (@⊥ (ε 'EBrk))) (@-value x))]
            [(⊑ (∨ (@-label t) pc)
                (∨ (@-value x) pc0 (@-label x)))
             (set-pc! (∨ pc0 (@-label x)))
-            (@ (@-value t) (@-value x))]
+            (@ (Left (@⊥ (@-value t))) (@-value x))]
            [else
             (set-pc! (∨ pc0 (@-label x)))
-            (@ (δ 'EBracket) (@-value x))]))
-        (@⊥ (prEx (@-value x))))))
+            (@ (Right (@⊥ (ε 'EBrk))) (@-value x))]))
+        (@⊥ (τ 'EType)))))
+
+(define-syntax-rule (throw expr)
+  (let* ([pc0 pc]
+         [v expr])
+    (set-pc! (∨ pc0 (@-label v)))
+    (if (ε? (@-value v))
+        (τ (ε-excp (@-value v)))
+        (τ 'EType))))
+
+(define-syntax try
+  (syntax-rules (catch)
+    [(_ try-expr catch x catch-expr)
+     (let* ([t try-expr]
+            [pc1 pc])
+       (if (τ? t)
+           (let* ([x (@⊥ (ε (τ-excp t)))]
+                  [res catch-expr])
+             (set-pc! pc1)
+             res)
+           t))]))
 
 ;; ----------------------------------------------------------------------------
 
@@ -176,4 +229,4 @@
   (member x '(TLab TFun TNum TStr TTag TUnknown)))
         
 (define (prEx b)
-  (if (δ? b) b (δ 'EType)))
+  (if (δ? b) b (τ 'EType)))
